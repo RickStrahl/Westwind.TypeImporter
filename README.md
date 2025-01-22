@@ -1,5 +1,7 @@
 # Westwind.TypeImporter
 
+*this is an internal project*
+
 This is a small library that uses Mono.Cecil and a custom XML Documentation parser to pull class documentation from .NET assemblies and types. It uses Mono.Cecil to allow consistent load of assemblies for various version of .NET as it's pulling only the metadata without loading types. The XML doc parser then post parses the XML documentation and retrieves Xml docs for objects and members.
 
 ```cs
