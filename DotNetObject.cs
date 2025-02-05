@@ -40,7 +40,16 @@ namespace Westwind.TypeImporter
 
         public string Assembly { get; set; }
         public string Namespace { get; set; }
+
+        /// <summary>
+        /// Base class that this class inherits from. 
+        /// Null if this is the base class.
+        /// </summary>
         public string InheritsFrom { get; set; }
+
+        /// <summary>
+        /// 
+        /// </summary>
         public string InheritanceTree { get; set; }
         public string Implements { get; set; }
         public string Contract { get; set; }
