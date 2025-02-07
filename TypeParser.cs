@@ -64,14 +64,19 @@ namespace Westwind.TypeImporter
 
             var typeList = new List<DotnetObject>();
 
-            var assembly = ModuleDefinition.ReadModule(assemblyPath);
-            if (assembly == null)
+            ModuleDefinition module = null;
+            try
+            {
+                module = ModuleDefinition.ReadModule(assemblyPath);
+            }
+            catch { }
+            if (module == null)
             {
                 SetError("Unable to load assembly: " + assemblyPath);
                 return null;
             }
 
-            var types = assembly.Types;
+            var types = module.Types;
             string classList = string.IsNullOrEmpty(ClassesToImport) ? null : "," + ClassesToImport + ",";
             
             
