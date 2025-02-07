@@ -692,11 +692,11 @@ namespace Westwind.TypeImporter
 
         public override string ToString()
         {
-            if (!string.IsNullOrEmpty(Syntax))
-                return Syntax;
+            if (!string.IsNullOrEmpty(Signature))
+                return Signature;
 
             if (!string.IsNullOrEmpty(Name))
-                return Name;
+                return  Namespace + "." + Name;
 
             return base.ToString();
         }
