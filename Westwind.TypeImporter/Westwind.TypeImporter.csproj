@@ -1,31 +1,28 @@
 ﻿<Project Sdk="Microsoft.NET.Sdk">
 	<PropertyGroup>
 		<TargetFrameworks>net9.0;net8.0;net472</TargetFrameworks>
-		<Version>0.21.1</Version>
+		<Version>0.22</Version>
 		<AssemblyName>Westwind.TypeImporter</AssemblyName>
 		<Product>West Wind Type Importer</Product>
 		<Authors>Rick Strahl, West Wind Technologies</Authors>
 		<Company>West Wind Technologies</Company>
 		<Copyright>West Wind Technologies, 2011-2025</Copyright>
 		<Description>West Wind Documentation Type Importer </Description>
-		<DebugType>embedded</DebugType>
-		<GenerateDocumentationFile>True</GenerateDocumentationFile>
-		<NoWarn>1701;1702;1573;1572;1591</NoWarn>
-
-		<DebugType>embedded</DebugType>
+		<DebugType>embedded</DebugType>		
+		<NoWarn>1701;1702;1573;1572;1591</NoWarn>		
 		<NoWarn>$(NoWarn);CS1591;CS1572;CS1573</NoWarn>				
 	</PropertyGroup>
 
 	<PropertyGroup Condition="'$(Configuration)'=='Release'">
 		<GeneratePackageOnBuild>true</GeneratePackageOnBuild>
 		<GenerateDocumentationFile>true</GenerateDocumentationFile>
-		<PackageOutputPath>./nupkg</PackageOutputPath>
+		<PackageOutputPath>../nupkg</PackageOutputPath>
 		<DebugType>embedded</DebugType>
 		<DebugSymbols>true</DebugSymbols>
 	</PropertyGroup>
 
 	<ItemGroup>
 		<PackageReference Include="Mono.Cecil" Version="0.11.6" />
-		<PackageReference Include="Westwind.Utilities" Version="5.1.3.1" />
+		<PackageReference Include="Westwind.Utilities" Version="5.1.4" />
 	</ItemGroup>
 </Project>

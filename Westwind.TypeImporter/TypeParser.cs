@@ -147,6 +147,8 @@ namespace Westwind.TypeImporter
             return ParseObject(td, dontParseMembers);
         }
 
+       
+
         /// <summary>
         /// Parses an object based on a  Mono.Cecil type definition
         /// </summary>
@@ -208,9 +210,15 @@ namespace Westwind.TypeImporter
 
             dotnetObject.Type = "class";
             if (type.IsInterface)
+            {
                 dotnetObject.Type = "interface";
+                dotnetObject.IsInterface = true;
+            }
             else if (type.IsEnum)
+            {
                 dotnetObject.Type = "enum";
+                dotnetObject.IsEnum = true;
+            }
             else if (type.IsValueType)
                 dotnetObject.Type = "struct";
 
@@ -360,6 +368,8 @@ namespace Westwind.TypeImporter
                 var meth = new ObjectMethod();
                 var miRef = mi.GetElementMethod();
 
+                var miDef = miRef.Resolve();
+
                 if (NoInheritedMembers && miRef.DeclaringType != dotnetType )
                     continue;
 
@@ -430,12 +440,15 @@ namespace Westwind.TypeImporter
                         methodParm.Other = "ref ";
                         methodParm.Name = methodParm.Name.TrimEnd('&');
                     }
-
+           
                     methodParm.ShortTypeName = FixupStringTypeName(parm.ParameterType.Name);
+
                     if (parm.ParameterType.IsGenericInstance)
+                    {
                         methodParm.ShortTypeName =
-                            DotnetObject.GetGenericTypeName(parm.ParameterType.GetElementType(),
+                            DotnetObject.GetGenericTypeName(parm.ParameterType,
                                 GenericTypeNameFormats.TypeName);
+                    }
 
 
                     methodParm.Type = parm.ParameterType.FullName;
@@ -444,18 +457,21 @@ namespace Westwind.TypeImporter
                     meth.ParameterList.Add(methodParm);
                 }
 
-                meth.ReturnType = mi.ReturnType.FullName;
-
+                meth.ReturnType = mi.ReturnType.FullName;             
+                
                 var simpleRetName = mi.ReturnType.Name;
-                if (!mi.ReturnType.IsGenericParameter)
+                if (!(mi.ReturnType is GenericInstanceType))
                     simpleRetName = FixupStringTypeName(simpleRetName);               
+                else
+                    simpleRetName = DotnetObject.GetGenericTypeName(mi.ReturnType, GenericTypeNameFormats.TypeName);
 
                 var sbSyntax = new StringBuilder();
                 sbSyntax.Append($"{dotnetObject.Scope} {dotnetObject.Other} {simpleRetName} {meth.Name}{meth.GenericParameters}(");
 
                 var parmCounter = 0;
-                 foreach (var parm in meth.ParameterList)
+                foreach (var parm in meth.ParameterList)
                 {
+                   
                     sbSyntax.Append($"{parm.ShortTypeName} {parm.Name}, ");
                     parmCounter++;
                     if (parmCounter % 2 == 0)
@@ -655,13 +671,24 @@ namespace Westwind.TypeImporter
                     continue;
 
                 var piRef = pi.FieldType;
+                
 
-                if (NoInheritedMembers && piRef.DeclaringType != dotnetType)
+                if (NoInheritedMembers && 
+                    !dotnetObject.IsEnum &&                     
+                    piRef.DeclaringType != dotnetType)
                     continue;
 
                 var prop = new ObjectProperty();
-                prop.Name = FixupStringTypeName(pi.FieldType.Name);
-                prop.PropertyMode = PropertyModes.Field;
+                if (dotnetObject.IsEnum)
+                {
+                    if (pi.Name == "value__")
+                        continue;
+                    prop.Name = pi.Name;                    
+                }
+                else
+                    prop.Name = FixupStringTypeName(pi.FieldType.Name);
+
+                prop.PropertyMode = dotnetType.IsEnum ? PropertyModes.Property : PropertyModes.Field;
 
                 if (pi.IsStatic)
                 {
@@ -690,7 +717,14 @@ namespace Westwind.TypeImporter
                 else
                     prop.Type = DotnetObject.GetGenericTypeName(pi.FieldType, GenericTypeNameFormats.TypeName);
 
-                prop.Syntax = $"{prop.Scope} {prop.Other} {prop.Type} {prop.Name}" + prop.Name;
+                if (dotnetObject.IsEnum)
+                {
+                    prop.Type = dotnetObject.Name;
+                    prop.Other = null;
+                    prop.Scope = null;                    
+                }
+
+                prop.Syntax = $"{prop.Scope} {prop.Other} {prop.Type} {prop.Name}".Trim();
                 prop.Syntax = prop.Syntax.Replace("  ", " ");
                 prop.Signature = prop.Signature = FixupMemberNameForSignature(pi.FullName);
                 prop.DeclaringType = pi.DeclaringType.FullName;

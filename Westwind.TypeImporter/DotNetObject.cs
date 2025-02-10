@@ -73,6 +73,8 @@ namespace Westwind.TypeImporter
 
         public bool IsInterface { get; set; }
 
+        public bool IsEnum { get; set; }
+
         /// <summary>
         /// Determines whether inherited members are retrieved
         /// </summary>
@@ -512,6 +514,10 @@ namespace Westwind.TypeImporter
         {
             string typeName = null;
 
+            var genericInstance = genericType as GenericInstanceType;
+            if (genericInstance == null)
+                return genericType.Name;
+
             int index = genericType.Name.IndexOf("`");
             if (index == -1)
             {
@@ -529,24 +535,22 @@ namespace Westwind.TypeImporter
             }
 
             // *** Strip off the Genric postfix
-            typeName = genericType.Name.Substring(0, index);
-            string FormattedName = typeName;
-
+            string formattedName = genericInstance.Name.StripAfter("`");
+            
             // *** Parse the generic type arguments
 
             string genericOutput = "<";
             bool start = true;
 
 
-            var genericParameters = genericType.GenericParameters;
-            if (genericParameters.Count < 1)
-                genericParameters = genericType.GetElementType().GenericParameters;
-
-            foreach (var genericArg in genericParameters)
+            var genericArgs = genericInstance.GenericArguments;
+            foreach (var genericArg in genericArgs)
             {
-                var name = genericArg.Name;
+                var name = TypeParser.FixupStringTypeName(genericArg.Name);
                 if (name.StartsWith("!"))
                     name = name.Replace("!0","T").Replace("!", "T");
+                if (name.Contains("`"))
+                    name = GetGenericTypeName(genericArg, typeNameFormat);
 
                 if (start)
                 {
@@ -566,15 +570,15 @@ namespace Westwind.TypeImporter
             if (typeNameFormat == GenericTypeNameFormats.GenericListOnly)
                 return genericOutput;
 
-            FormattedName += genericOutput;
+            formattedName += genericOutput;
 
             // *** return the type name plus the generic list
             if (typeNameFormat == GenericTypeNameFormats.TypeName)
-                return FormattedName;
+                return formattedName;
 
 
             // *** Add the full namespace
-            return genericType.Namespace + "." + FormattedName;
+            return genericType.Namespace + "." + formattedName;
         }
 
 

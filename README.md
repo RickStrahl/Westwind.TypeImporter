@@ -1,28 +1,36 @@
-# Westwind.TypeImporter
+# Westwind Type Importer
+**a small library to import .NET Assemblies and classes for creating documentation**
 
-*this is an internal project*
+This is a small helper library that parses .NET assemblies or individual .NET types into an easily traversible structure containing human readable content,  that can be easily used for producing class reference documentation, for support features that need to integrate type information at runtime, or that 
+want to utilize Xml documentation inside of running applications.
 
-This is a small library that uses Mono.Cecil and a custom XML Documentation parser to pull class documentation from .NET assemblies and types. It uses Mono.Cecil to allow consistent load of assemblies for various version of .NET as it's pulling only the metadata without loading types. The XML doc parser then post parses the XML documentation and retrieves Xml docs for objects and members.
+This library:
 
-```cs
-var typeParser = new Westwind.TypeImporter.TypeParser()
-{
-    ParseXmlDocumentation = true
-};
-var dotnetObject = typeParser.ParseObject(appConfigType);
-if (dotnetObject == null)
-{
-    return null;
-}
+* Parses Assembly and Class Structures
+* Extracts classes and members
+* Cleans up type signatures
+* Produces readable Syntax and Signature information
+* Extracts XML documentation for help content
 
-foreach(var method in dotnetObject.Methods)
-{
-    Console.WriteLine(method.Syntax);
-    Console.WriteLine(method.HelpText);
-}
-foreach9var prop in dotnetObject.Properties)
-{
-    Console.WriteLine(prop.Syntax);
-    Console.WriteLine(prop.Syntax);
-}
-```
+The obvious use case is to create class documentation for libraries and this library provides an easy way to get:
+
+* A list of all types in an assembly
+* Every type
+* Every method
+* Every property
+* Every delegate/event
+
+While you can do all this with Reflection the structure of this library makes this much easier to iterate and parse. Additionally the class information returned is parsed and cleaned up so it suitable for documentation. 
+
+Class and member information has:
+
+* Cleaned up Syntax and Signature fields
+* Generic types have been properly expanded
+* Xml Documentation is retrieved (if available) during parsing
+* Documentation text is properly word wrapped
+
+## Use Cases
+
+* Documentation Creation
+* Runtime access to human readable type information
+* Displaying help or tooltip information about settings from Xml Documentation
