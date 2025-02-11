@@ -466,7 +466,13 @@ namespace Westwind.TypeImporter
                     simpleRetName = DotnetObject.GetGenericTypeName(mi.ReturnType, GenericTypeNameFormats.TypeName);
 
                 var sbSyntax = new StringBuilder();
-                sbSyntax.Append($"{dotnetObject.Scope} {dotnetObject.Other} {simpleRetName} {meth.Name}{meth.GenericParameters}(");
+                if (meth.IsConstructor)
+                {
+                    sbSyntax.Append($"{dotnetObject.Scope} {dotnetObject.Other} {meth.Name}{meth.GenericParameters}(");
+                    meth.Name = "Constructor";
+                }
+                else
+                    sbSyntax.Append($"{dotnetObject.Scope} {dotnetObject.Other} {simpleRetName} {meth.Name}{meth.GenericParameters}(");
 
                 var parmCounter = 0;
                 foreach (var parm in meth.ParameterList)
@@ -572,6 +578,7 @@ namespace Westwind.TypeImporter
                 prop.Classname = pi.DeclaringType.Name;
 
                 prop.PropertyMode = PropertyModes.Property;
+                
 
                 if (pi.SetMethod == null)
                     prop.ReadOnly = true;
@@ -678,7 +685,10 @@ namespace Westwind.TypeImporter
                     piRef.DeclaringType != dotnetType)
                     continue;
 
-                var prop = new ObjectProperty();
+                var prop = new ObjectProperty()
+                {
+                    PropertyMode = PropertyModes.Field
+                };
                 if (dotnetObject.IsEnum)
                 {
                     if (pi.Name == "value__")
@@ -687,8 +697,8 @@ namespace Westwind.TypeImporter
                 }
                 else
                     prop.Name = FixupStringTypeName(pi.FieldType.Name);
-
-                prop.PropertyMode = dotnetType.IsEnum ? PropertyModes.Property : PropertyModes.Field;
+                
+                
 
                 if (pi.IsStatic)
                 {
@@ -719,15 +729,13 @@ namespace Westwind.TypeImporter
 
                 if (dotnetObject.IsEnum)
                 {
-                    prop.Type = dotnetObject.Name;
-                    prop.Other = null;
-                    prop.Scope = null;                    
+                    prop.Type = dotnetObject.Name;                                
                 }
 
                 prop.Syntax = $"{prop.Scope} {prop.Other} {prop.Type} {prop.Name}".Trim();
                 prop.Syntax = prop.Syntax.Replace("  ", " ");
                 prop.Signature = prop.Signature = FixupMemberNameForSignature(pi.FullName);
-                prop.DeclaringType = pi.DeclaringType.FullName;
+                prop.DeclaringType = pi.DeclaringType.FullName;                
 
                 propertyList.Add(prop);
             }
