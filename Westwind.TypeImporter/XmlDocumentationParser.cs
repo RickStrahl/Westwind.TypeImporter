@@ -777,7 +777,7 @@ namespace Westwind.TypeImporter
 
                 foreach (string Text in al)
                 {
-                    output = StringUtils.ReplaceString(output, "@@!@@", "<pre>" + Text + "</pre>", true);
+                    output = StringUtils.ReplaceStringInstance(output, "@@!@@", "<pre>" + Text + "</pre>", 1, true);
                 }
             }
 
