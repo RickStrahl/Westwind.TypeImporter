@@ -35,6 +35,32 @@
         }
 
         [TestMethod]
+        public void ParseLibraryWithLotsOfGenericsTest()
+        {
+            string assemblyFile = @"D:\projects\Westwind.AspNetCore\Westwind.AspNetCore\bin\Release\net9.0\Westwind.AspNetCore.dll";            
+            var importer = new Westwind.TypeImporter.TypeParser();
+            importer.AssemblyFilename = assemblyFile;
+            importer.NoInheritedMembers = true;
+            importer.ParseXmlDocumentation = true;
+
+            var types = importer.GetAllTypes();
+
+            foreach (var type in types)
+            {
+                Console.WriteLine(type.Name); // + " -  " + type.Signature + " - " + type.Syntax);
+
+                ///if(type.Name.Contains("<"))
+                Console.WriteLine(type.InheritanceTree);
+
+                Console.WriteLine("---");
+                //foreach (var meth in type.Methods)
+                //{
+                //    Console.WriteLine(meth.Signature + "\n   " + meth.Syntax + "\n");
+                //}
+            }
+        }
+
+        [TestMethod]
         public void ParseLibraryEnumsTest()
         {
             string assemblyFile = @"D:\projects\Libraries\Westwind.AI\Westwind.AI\bin\Release\.net9.0\Westwind.AI.dll";

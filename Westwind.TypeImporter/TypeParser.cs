@@ -157,7 +157,7 @@ namespace Westwind.TypeImporter
         /// <returns></returns>
         public DotnetObject ParseObject(TypeDefinition type, bool dontParseMembers = false )
         {
-            if (type.Name.StartsWith("<"))
+            if (type.Name.StartsWith("<")) // internal type
                 return null;
             
             var dotnetObject = new DotnetObject
@@ -206,7 +206,7 @@ namespace Westwind.TypeImporter
             dotnetObject.IsAbstract = type.IsAbstract;
 
             dotnetObject.Namespace = type.Namespace;
-            dotnetObject.Signature = type.FullName;
+            dotnetObject.Signature = type.Namespace + "." + dotnetObject.Name;
 
             dotnetObject.Type = "class";
             if (type.IsInterface)
@@ -265,9 +265,10 @@ namespace Westwind.TypeImporter
                 // *** Create the Inheritance Tree
                 List<string> Tree = new List<string>();
                 var current = type;
+                                
                 while (current != null)
                 {
-                    if (current.IsGenericInstance)
+                    if (current.IsGenericInstance || current.HasGenericParameters)
                         Tree.Insert(0,FixupStringTypeName(DotnetObject.GetGenericTypeName(current, GenericTypeNameFormats.FullTypeName)));
                     else
                         Tree.Insert(0,current.FullName);
@@ -275,10 +276,23 @@ namespace Westwind.TypeImporter
                     var tref = current.BaseType as TypeReference;
                     if (tref == null)
                         break;
-
-                    var tdef = new TypeDefinition(tref.Namespace, tref.Name, Mono.Cecil.TypeAttributes.Class, tref);
-                    if (current.FullName == tdef.FullName)
+                    if (tref.FullName == "System.Object")
+                    {
+                        Tree.Insert(0,"System.Object");
                         break;
+                    }
+
+
+                    TypeDefinition tdef;
+                    try
+                    {
+                        tdef = tref.Resolve();
+                        if (tdef.ToString() == current.ToString())
+                            break;
+                    }catch
+                    {
+                        break;
+                    }
 
                     current = tdef;
                 }

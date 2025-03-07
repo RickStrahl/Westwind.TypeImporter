@@ -516,7 +516,8 @@ namespace Westwind.TypeImporter
 
             var genericInstance = genericType as GenericInstanceType;
             if (genericInstance == null)
-                return genericType.Name;
+                return GetGenericTypeNameNoInstance(genericType, typeNameFormat);
+                
 
             int index = genericType.Name.IndexOf("`");
             if (index == -1)
@@ -576,11 +577,38 @@ namespace Westwind.TypeImporter
             if (typeNameFormat == GenericTypeNameFormats.TypeName)
                 return formattedName;
 
+            if (typeNameFormat == GenericTypeNameFormats.FullTypeName)
+                return genericType.Namespace + "." +formattedName;
 
             // *** Add the full namespace
             return genericType.Namespace + "." + formattedName;
         }
 
+        private static string GetGenericTypeNameNoInstance(TypeReference genericType, GenericTypeNameFormats typeNameFormat)
+        {
+            var typeName = genericType.Name.StripAfter("`");
+            var genericParms = "<";
+            foreach(var parm in genericType.GenericParameters)
+            {
+                genericParms += parm.Name + ",";
+            }
+            genericParms = genericParms.TrimEnd(',') + ">";
+
+            if (genericParms== "<>")
+                genericParms  = string.Empty;
+
+            if (typeNameFormat == GenericTypeNameFormats.GenericListOnly)
+                return genericParms;
+
+            typeName += genericParms;
+
+            // *** return the type name plus the generic list
+            if (typeNameFormat == GenericTypeNameFormats.TypeName)
+                return typeName;
+
+            // *** Add the full namespace
+            return genericType.Namespace + "." + typeName;
+        }
 
 
         /// <summary>
