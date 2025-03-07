@@ -37,7 +37,7 @@
         [TestMethod]
         public void ParseLibraryWithLotsOfGenericsTest()
         {
-            string assemblyFile = @"D:\projects\Westwind.AspNetCore\Westwind.AspNetCore\bin\Release\net9.0\Westwind.AspNetCore.dll";            
+            string assemblyFile = @"D:\projects\Westwind.WebStore\Westwind.Webstore.Web\bin\Release\net9.0\Westwind.AspNetCore.dll";            
             var importer = new Westwind.TypeImporter.TypeParser();
             importer.AssemblyFilename = assemblyFile;
             importer.NoInheritedMembers = true;
