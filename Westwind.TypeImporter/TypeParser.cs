@@ -282,15 +282,15 @@ namespace Westwind.TypeImporter
                         break;
                     }
 
-
                     TypeDefinition tdef;
                     try
                     {
-                        tdef = tref.Resolve();
+                        tdef = tref.Resolve();  // this throws if type can't be resolved
                         if (tdef.ToString() == current.ToString())
                             break;
                     }catch
                     {
+                        // inheritance chain broken - no way to retreive the rest of the inheritance
                         break;
                     }
 
