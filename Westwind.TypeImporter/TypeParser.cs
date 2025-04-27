@@ -467,10 +467,8 @@ namespace Westwind.TypeImporter
 
                     methodParm.Type = parm.ParameterType.FullName;
 
-
                     meth.ParameterList.Add(methodParm);
                 }
-
                 meth.ReturnType = mi.ReturnType.FullName;             
                 
                 var simpleRetName = mi.ReturnType.Name;

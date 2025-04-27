@@ -1,7 +1,7 @@
 ﻿<Project Sdk="Microsoft.NET.Sdk">
 	<PropertyGroup>
 		<TargetFrameworks>net9.0;net8.0;net472</TargetFrameworks>
-		<Version>0.22.4</Version>
+		<Version>0.22.6</Version>
 		<AssemblyName>Westwind.TypeImporter</AssemblyName>
 		<Product>West Wind Type Importer</Product>
 		<Authors>Rick Strahl, West Wind Technologies</Authors>

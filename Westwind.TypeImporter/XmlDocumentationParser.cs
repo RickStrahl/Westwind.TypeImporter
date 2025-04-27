@@ -132,9 +132,9 @@ namespace Westwind.TypeImporter
                         foreach(var parm in method.ParameterList)
                         {
                             parmDescriptions = parmDescriptions +
-                                "**" + parm + "**  \r\n";
+                                "**" + parm.Name + "**  \r\n";
 
-                            SubMatch = Match.SelectSingleNode("param[@name='" + parm + "']");
+                            SubMatch = Match.SelectSingleNode("param[@name='" + parm.Name + "']");
                             if (SubMatch != null)
                             {
                                 string value = SubMatch.InnerText;
