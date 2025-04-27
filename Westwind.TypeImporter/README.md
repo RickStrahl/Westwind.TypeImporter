@@ -1,6 +1,6 @@
 # Westwind.TypeImporter
 
-**a internal small library to import .NET Assemblies and classes for creating documentation**
+**a internal small library to import .NET Assemblies and classes for creating References documentation**
 
 This is a small helper library that parses .NET assemblies or individual .NET types into an easily traversible structure containing human readable content, that can be easily used for producing class reference documentation, for support features that need to integrate type information at runtime, or that want to utilize Xml documentation inside of running applications.
 
