@@ -464,7 +464,6 @@ namespace Westwind.TypeImporter
                                 GenericTypeNameFormats.TypeName);
                     }
 
-
                     methodParm.Type = parm.ParameterType.FullName;
 
                     meth.ParameterList.Add(methodParm);
