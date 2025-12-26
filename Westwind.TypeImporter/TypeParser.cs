@@ -132,8 +132,12 @@ namespace Westwind.TypeImporter
             resolver.AssemblyDefinition = a;
 
             var tr = a.MainModule.ImportReference(type: type);
-            var td = tr.Resolve();
-
+            TypeDefinition td = null;
+            try
+            {
+                td = tr.Resolve();
+            }
+            catch { }
 
             if (td == null)
             {
@@ -145,6 +149,7 @@ namespace Westwind.TypeImporter
                 AssemblyFilename = type.Assembly.Location;
 
             return ParseObject(td, dontParseMembers);
+            return ParseObject(td as TypeDefinition, dontParseMembers);
         }
 
        

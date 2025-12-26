@@ -80,7 +80,7 @@
                 Console.WriteLine(type.RawTypeName + " -  " + type.Signature + " - " + type.Syntax);
                 foreach (var prop in type.Properties)
                 {
-                    Console.WriteLine(prop.Name);
+                    Console.WriteLine(" -- " + prop.Name);
                 }
             }
         }
