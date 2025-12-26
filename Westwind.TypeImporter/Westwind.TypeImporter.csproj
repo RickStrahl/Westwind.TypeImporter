@@ -22,6 +22,12 @@
 	</PropertyGroup>
 
 	<ItemGroup>
+	  <Compile Remove="Old\**" />
+	  <EmbeddedResource Remove="Old\**" />
+	  <None Remove="Old\**" />
+	</ItemGroup>
+
+	<ItemGroup>
 		<PackageReference Include="Mono.Cecil" Version="0.11.6" />
 		<PackageReference Include="Westwind.Utilities" Version="5.2.0" />
 	</ItemGroup>
