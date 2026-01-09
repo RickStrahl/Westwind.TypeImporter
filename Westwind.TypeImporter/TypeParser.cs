@@ -281,6 +281,8 @@ namespace Westwind.TypeImporter
                     var tref = current.BaseType as TypeReference;
                     if (tref == null)
                         break;
+
+                    // top of tree reached
                     if (tref.FullName == "System.Object")
                     {
                         Tree.Insert(0,"System.Object");
@@ -291,7 +293,7 @@ namespace Westwind.TypeImporter
                     try
                     {
                         tdef = tref.Resolve();  // this throws if type can't be resolved
-                        if (tdef.ToString() == current.ToString())
+                        if (tdef == null || tdef.ToString() == current.ToString())
                             break;
                     }catch
                     {
