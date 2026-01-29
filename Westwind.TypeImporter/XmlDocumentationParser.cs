@@ -2,12 +2,14 @@ using System;
 using System.Collections;
 using System.Collections.Generic;
 using System.Diagnostics;
+using System.Linq;
 using System.Text;
 using System.Xml;
+using System.Xml.Linq;
 using Westwind.Utilities;
 
 namespace Westwind.TypeImporter
-{
+{ 
     /// <summary>
     /// Class that handles importing of XML documentation to an existing
     /// DotnetObject instance
@@ -69,7 +71,7 @@ namespace Westwind.TypeImporter
 
 
                 dotnetObject.SeeAlso = FixupSeeAlsoLinks(ref dotnetObjectHelpText) +
-                                           FixupSeeAlsoLinks(ref dotnetObjectRemarks);
+                                       FixupSeeAlsoLinks(ref dotnetObjectRemarks);
                     dotnetObject.HelpText = dotnetObjectHelpText;
                     dotnetObject.Remarks = dotnetObjectRemarks;
 
@@ -110,6 +112,10 @@ namespace Westwind.TypeImporter
                             continue;
 
                         method.HelpText = GetNodeValue(Match, "summary");
+                    
+                    if (method.HelpText.Contains("ValidationErrorCollection.AddFormat"))
+                        Debugger.Break();
+
                         method.Remarks = GetNodeValue(Match, "remarks");
                         method.Example = GetExampleCode(Match);
                         method.Contract = GetContracts(Match);
@@ -280,12 +286,16 @@ namespace Westwind.TypeImporter
                 if (subMatch != null)
                 {
                     // *** Need to pull inner XML so we can get the sub XML strings ilke <seealso> etc.
+                    var nodeContent = subMatch.InnerXml.Replace("\r\n", "\r");
                     if (keyword == "example")
-                        result = FixHelpString(subMatch.InnerText.Replace("\r\n","\r"),false);
+                        result = FixHelpString(nodeContent, false);
                     else
-                        result = FixHelpString(subMatch.InnerText.Replace("\r\n","\r"),wordWrap);
+                        result = FixHelpString(nodeContent, wordWrap);
 
-                    result = FixupSeeLinks(result);
+                    result = ParseSeeAndSeeAlso(result);
+
+                    //result = FixupCrefInlineCode(result);
+                    //result = FixupSeeLinks(result);
 
                     subMatch = null;
 
@@ -342,6 +352,55 @@ namespace Westwind.TypeImporter
 
             return result;
         }
+
+        //protected string FixupCrefInlineCode(string result)
+        //{
+        //    if (string.IsNullOrEmpty(result))
+        //        return result;
+
+        //    while (result.IndexOf("<see ") > -1)
+        //    {
+        //        string lcSee = StringUtils.ExtractString(result, "<see ", "/>", true);
+        //        if (lcSee != string.Empty)
+        //        {
+        //            string lcRef = StringUtils.ExtractString(lcSee, "cref=\"", "\"");
+        //            string lcCaption = GetCrefCaption(lcRef);
+        //            result = StringUtils.ExtractString(result, "<see " + lcSee + "/>", "`" + lcCaption + "`");
+        //            continue;
+        //        }
+
+        //        lcSee = StringUtils.ExtractString(result, "<see ", "</see>", true);
+        //        if (lcSee == string.Empty)
+        //            break;
+
+        //        string caption = lcSee.Substring(lcSee.IndexOf(">") + 1);
+        //        if (string.IsNullOrWhiteSpace(caption))
+        //        {
+        //            string lcRef = StringUtils.ExtractString(lcSee, "cref=\"", "\"");
+        //            caption = GetCrefCaption(lcRef);
+        //        }
+
+        //        result = StringUtils.ExtractString(result, "<see " + lcSee + "</see>", "`" + caption + "`");
+        //    }
+
+        //    return result;
+        //}
+
+        //private string GetCrefCaption(string cref)
+        //{
+        //    if (string.IsNullOrEmpty(cref))
+        //        return string.Empty;
+
+        //    string caption = cref;
+        //    if (caption.IndexOf(":") == 1)
+        //        caption = caption.Substring(2);
+
+        //    int at = caption.IndexOf("(");
+        //    if (at > -1)
+        //        caption = caption.Substring(0, at);
+
+        //    return caption;
+        //}
 
         /// <summary>
         /// Returns the Example code snippet either as a single
@@ -464,117 +523,120 @@ namespace Westwind.TypeImporter
         }
 
 
-        /// <summary>
-        /// Fixes up <see></see> links in various formats.
-        /// </summary>
-        /// <param name="result"></param>
-        /// <returns></returns>
-        protected string FixupSeeLinks(string result)
-        {
-            int Mode = 0;
-            while (result.IndexOf("<see") > -1)
-            {
-                string lcCaption = "";
-                string lcRef = "";
-
-                // *** <see>Class Test</see>
-                string lcSee = StringUtils.ExtractString(result, "<see>", "</see>", true);
-                if (lcSee != string.Empty)
-                {
-                    // plain tag
-                    lcRef = lcSee;
-                    lcCaption = lcSee;
-                    Mode = 0;
-                }
-                else
-                {
-                    // *** Full CRef syntax:
-                    lcSee = StringUtils.ExtractString(result, "<see ", "/>", true);
-                    if (lcSee != string.Empty)
-                    {
-                        // <see cref="..." />
-                        Mode = 2;
-                        lcRef = StringUtils.ExtractString(lcSee, "cref=\"", "\"");
-                        if (lcRef != string.Empty)
-                        {
-                            if (lcRef.IndexOf(":") == 1)
-                                lcCaption = lcRef.Substring(2);
-                            else
-                                lcCaption = lcRef;
-                        }
-                    }
-                    else
-                    {
-                        lcSee = StringUtils.ExtractString(result, "<see ", "</see>", true);
-                        if (lcSee == string.Empty)
-                            break;
-
-                        Mode = 1;
-                        lcRef =StringUtils.ExtractString(lcSee, "cref=\"", "\"");
-                        lcCaption = lcSee.Substring(lcSee.IndexOf(">") + 1);
-                    }
-
-                    if (lcCaption == "")
-                    {
-                        lcCaption = lcRef;
-                        if (lcCaption.IndexOf(":") == 1)
-                            lcCaption = lcCaption.Substring(2);
-
-                        int At = lcCaption.IndexOf("(");
-                        if (At > -1)
-                            lcCaption = lcCaption.Substring(0, At);
-                    }
-                    if (lcRef == "")
-                        lcRef = lcCaption; // try to find in Help File by name
-
-#if VSNet_Addin
-							// *** Check for .NET References -  point at MSDN
-							if ( lcRef.StartsWith("System.") || lcRef.StartsWith("Microsoft.") )
-								lcRef = "msdn:T:" + lcRef;
-							else
-							{
-								lcRef = "sig:" + lcRef;
-							}
-
-#else
-                    // *** Check for .NET References -  point at MSDN
-                    if (lcRef.IndexOf("System.") == 2 || lcRef.IndexOf("Microsoft.") == 2)
-                        lcRef = "msdn:" + lcRef;
-                    else
-                    {
-                        // *** Nope must be internal links - look up in project.
-                        // *** Strip of prefix and add sig: prefix
-                        if (lcRef.IndexOf(":") > -1)
-                        {
-                            // *** Add method brackets on empty methods because that's
-                            // *** that's how we are importing them
-                            if (lcRef.StartsWith("M:") && lcRef.IndexOf("(") == -1)
-                                lcRef += "()";
-
-                            // *** Mark as a Signature link skipping over prefix
-                            lcRef = "sig:" + lcRef.Substring(2);
-                        }
-                        else
-                          lcRef = "sig:" + lcRef;
-                    }
-#endif
-                }
 
 
-                if (Mode == 0)
-                    result = StringUtils.ExtractString(result, "<see>" + lcSee + "</see>",
-                        "<%=TopicLink(\"" + lcCaption + "\",\"" + lcRef + "\") %>");
-                else if (Mode == 1)
-                    result = StringUtils.ExtractString(result, "<see " + lcSee + "</see>",
-                        "<%=TopicLink(\"" + lcCaption + "\",\"" + lcRef + "\") %>");
-                else if (Mode == 2)
-                    result = StringUtils.ExtractString(result, "<see " + lcSee + "/>",
-                        "<%=TopicLink(\"" + lcCaption + "\",\"" + lcRef + "\") %>");
+        //        /// <summary>
+        //        /// Fixes up <see></see> links in various formats.
+        //        /// </summary>
+        //        /// <param name="result"></param>
+        //        /// <returns></returns>
+        //        protected string FixupSeeLinks(string result)
+        //        {
+        //            if (string.IsNullOrEmpty(result)) return result;
 
-            }
+        //            int Mode = 0;
+        //            while (result.IndexOf("<see") > -1)
+        //            {
+        //                string lcCaption = "";
+        //                string lcRef = "";
 
-            return result;
-        }
+        //                // *** <see>Class Test</see>
+        //                string lcSee = StringUtils.ExtractString(result, "<seealso>", "</seealso>", true);
+        //                if (lcSee != string.Empty)
+        //                {
+        //                    // plain tag
+        //                    lcRef = lcSee;
+        //                    lcCaption = lcSee;
+        //                    Mode = 0;
+        //                }
+        //                else
+        //                {
+        //                    // *** Full CRef syntax:
+        //                    lcSee = StringUtils.ExtractString(result, "<seealso ", "/>", true);
+        //                    if (lcSee != string.Empty)
+        //                    {
+        //                        // <see cref="..." />
+        //                        Mode = 2;
+        //                        lcRef = StringUtils.ExtractString(lcSee, "cref=\"", "\"");
+        //                        if (lcRef != string.Empty)
+        //                        {
+        //                            if (lcRef.IndexOf(":") == 1)
+        //                                lcCaption = lcRef.Substring(2);
+        //                            else
+        //                                lcCaption = lcRef;
+        //                        }
+        //                    }
+        //                    else
+        //                    {
+        //                        lcSee = StringUtils.ExtractString(result, "<see ", "</see>", true);
+        //                        if (lcSee == string.Empty)
+        //                            break;
+
+        //                        Mode = 1;
+        //                        lcRef =StringUtils.ExtractString(lcSee, "cref=\"", "\"");
+        //                        lcCaption = lcSee.Substring(lcSee.IndexOf(">") + 1);
+        //                    }
+
+        //                    if (lcCaption == "")
+        //                    {
+        //                        lcCaption = lcRef;
+        //                        if (lcCaption.IndexOf(":") == 1)
+        //                            lcCaption = lcCaption.Substring(2);
+
+        //                        int At = lcCaption.IndexOf("(");
+        //                        if (At > -1)
+        //                            lcCaption = lcCaption.Substring(0, At);
+        //                    }
+        //                    if (lcRef == "")
+        //                        lcRef = lcCaption; // try to find in Help File by name
+
+        //#if VSNet_Addin
+        //							// *** Check for .NET References -  point at MSDN
+        //							if ( lcRef.StartsWith("System.") || lcRef.StartsWith("Microsoft.") )
+        //								lcRef = "msdn:T:" + lcRef;
+        //							else
+        //							{
+        //								lcRef = "sig:" + lcRef;
+        //							}
+
+        //#else
+        //                    // *** Check for .NET References -  point at MSDN
+        //                    if (lcRef.IndexOf("System.") == 2 || lcRef.IndexOf("Microsoft.") == 2)
+        //                        lcRef = "msdn:" + lcRef;
+        //                    else
+        //                    {
+        //                        // *** Nope must be internal links - look up in project.
+        //                        // *** Strip of prefix and add sig: prefix
+        //                        if (lcRef.IndexOf(":") > -1)
+        //                        {
+        //                            // *** Add method brackets on empty methods because that's
+        //                            // *** that's how we are importing them
+        //                            if (lcRef.StartsWith("M:") && lcRef.IndexOf("(") == -1)
+        //                                lcRef += "()";
+
+        //                            // *** Mark as a Signature link skipping over prefix
+        //                            lcRef = "sig:" + lcRef.Substring(2);
+        //                        }
+        //                        else
+        //                          lcRef = "sig:" + lcRef;
+        //                    }
+        //#endif
+        //                }
+
+        //                if (Mode == 0)
+        //                    result = StringUtils.ReplaceString(result, "<seealso>" + lcSee + "</seealso>",
+        //                        "[" + lcCaption + "](dm-title://" + UrlEncodeSimple(lcRef) + ")",true);
+        //                else if (Mode == 1)
+        //                    result = StringUtils.ReplaceString(result, "<seealso " + lcSee + "</seealso>",
+        //                        "[" + lcCaption + "](dm-title://" + UrlEncodeSimple(lcRef) + ")", true);
+        //                else if (Mode == 2)
+        //                    result = StringUtils.ReplaceString(result, "<seealso " + lcSee + "/>",
+        //                        "[" + lcCaption + "](dm-title://" + UrlEncodeSimple(lcRef) + ")",true);
+
+        //            }
+
+        //            return result;
+        //        }
 
         /// <summary>
         /// Extracts seealso sections out of the XML into a CR delimited strings
@@ -597,7 +659,7 @@ namespace Westwind.TypeImporter
 
             while (extract != "")
             {
-                extract = StringUtils.ExtractString(body, "<seealso>", "</seealso>");
+                extract = body.ExtractString("<seealso>", "</seealso>");
                 if (extract != "")
                 {
                     result += extract + "\r\n";
@@ -606,15 +668,15 @@ namespace Westwind.TypeImporter
                 else
                 {
                     // *** retrieve  CREF
-                    extract = StringUtils.ExtractString(body, "<seealso cref=\"", ">", false, false, true);
+                    extract = body.ExtractString("<seealso cref=\"", ">", false, false, true);
                     if (extract != "")
                     {
                         // Extract just the class string
-                        string cref = StringUtils.ExtractString(extract, "cref=\"", "\"");
+                        string cref = extract.ExtractString("cref=\"", "\"");
                         cref = FixupCRefUrl(cref);
 
                         // strip out type prefix (T:System.String)
-                        string insertText = StringUtils.ExtractString(cref, ":", "xx", false, true);
+                        string insertText = cref.ExtractString(":", "xx", false, true);
 
                         body = body.Replace(extract, "<%= TopicLink(\"" + insertText + "\",\"" + cref + "\") %>");
                         result += cref + "\r\n";
@@ -623,6 +685,21 @@ namespace Westwind.TypeImporter
             }
 
             return result;
+        }
+
+        static string UrlEncodeSimple(string url, bool encodeSlashes = false)
+        {
+            if (encodeSlashes)
+                return System.Net.WebUtility.UrlEncode(url);
+
+            return url
+                .Replace("%", "%25")
+                .Replace(" ", "%20")
+                .Replace("&", "%26")
+                .Replace("?", "%3F")
+                .Replace("#", "%23")
+                .Replace("\n", "%0A")
+                .Replace("\r", "%0D");
         }
 
         /// <summary>
@@ -640,7 +717,7 @@ namespace Westwind.TypeImporter
             {
                 // *** Nope must be internal links - look up in project.
                 // *** Strip of prefix and add sig: prefix
-                if (cref.IndexOf(":") > -1)
+                if (cref.IndexOf(":") == 1)
                 {
                     // *** Add method brackets on empty methods because that's
                     // *** that's how we are importing them
@@ -784,5 +861,106 @@ namespace Westwind.TypeImporter
             return output;
         }
 
+
+
+
+        #region See and SeeAlso Parsing
+
+        /// <summary>
+        /// Parses the raw text of an XML documentation element (e.g., content from <summary> or <remarks>) 
+        /// and expands <see> and <seealso> tags into Markdown links.
+        /// 
+        /// - If the tag has a cref/href and inner content, uses the inner content as link text.
+        /// - If no inner content, uses a friendly version of the cref (stripping prefix like 'T:').
+        /// - Links use 'dm-title://' prefix for non-HTTP cref values.
+        /// - Other XML tags are stripped, preserving their inner text.
+        /// - Falls back to original input on parse errors.
+        /// </summary>
+        /// <param name="input">The raw XML fragment text to parse.</param>
+        /// <returns>The parsed text with expanded links in Markdown format.</returns>
+        public static string ParseSeeAndSeeAlso(string input)
+        {
+            if (string.IsNullOrWhiteSpace(input))
+                return input;
+
+            try
+            {
+                // Wrap in a dummy element to parse as XML fragment
+                var dummy = XElement.Parse("<dummy>" + input + "</dummy>");
+                return string.Concat(dummy.Nodes().Select(ProcessNode)).Trim();
+            }
+            catch (Exception)
+            {
+                // Fallback to original on parse failure (e.g., malformed XML)
+                return input;
+            }
+        }
+
+        private static string ProcessNode(XNode node)
+        {
+            if (node is XText text)
+            {
+                return text.Value;
+            }
+
+            if (node is XElement element)
+            {
+                string name = element.Name.LocalName;
+                if (name == "see" || name == "seealso")
+                {
+                    string cref = element.Attribute("cref")?.Value;
+                    string href = element.Attribute("href")?.Value;
+                    string attrib = cref ?? href ?? string.Empty;
+
+                    // Get inner content recursively
+                    string inner = string.Concat(element.Nodes().Select(ProcessNode)).Trim();
+
+                    // Use inner as link text if present; else friendly cref
+                    string linkText = string.IsNullOrEmpty(inner) ? GetFriendlyName(attrib) : inner;
+
+                    if (string.IsNullOrEmpty(attrib))
+                    {
+                        return linkText; // No link, just text
+                    }
+
+                    // Determine link scheme
+                    string link = attrib.StartsWith("http", StringComparison.OrdinalIgnoreCase)
+                        ? attrib
+                        : "dm-title://" + attrib;
+
+                    return $"[{linkText}]({link})";
+                }
+                else
+                {
+                    // For other elements, strip the tag and process children (e.g., <para> becomes just its text)
+                    return string.Concat(element.Nodes().Select(ProcessNode));
+                }
+            }
+
+            return string.Empty;
+        }
+
+        private static string GetFriendlyName(string cref)
+        {
+
+            if (string.IsNullOrEmpty(cref))
+                return string.Empty;
+            if (cref.StartsWith("http"))
+                return cref;
+
+            // Strip prefix like 'T:' or 'M:' if present
+            int colonIndex = cref.IndexOf(':');
+            if (colonIndex == 1)
+            {
+                return cref.Substring(colonIndex + 1);
+            }
+
+            return cref;
+        }
+        #endregion
+
     }
+
 }
+
+
