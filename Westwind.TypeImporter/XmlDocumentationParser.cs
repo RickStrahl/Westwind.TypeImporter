@@ -3,13 +3,14 @@ using System.Collections;
 using System.Collections.Generic;
 using System.Diagnostics;
 using System.Linq;
+using System.Net;
 using System.Text;
 using System.Xml;
 using System.Xml.Linq;
 using Westwind.Utilities;
 
 namespace Westwind.TypeImporter
-{ 
+{
     /// <summary>
     /// Class that handles importing of XML documentation to an existing
     /// DotnetObject instance
@@ -42,40 +43,146 @@ namespace Westwind.TypeImporter
             }
             catch (Exception ex)
             {
-                ErrorMessage = "Unable to load XML Documentation file." + ex.Message ;
+                ErrorMessage = "Unable to load XML Documentation file." + ex.Message;
                 return false;
             }
 
 
-                XmlNode Match = null;
-                XmlNode SubMatch = null;
+            XmlNode Match = null;
+            XmlNode SubMatch = null;
 
-                try
-                {
-                    Match = oDom.SelectSingleNode("/doc/members/member[@name='" +
-                        "T:" + dotnetObject.Signature +  "']");
+            try
+            {
+                Match = oDom.SelectSingleNode("/doc/members/member[@name='" +
+                    "T:" + dotnetObject.Signature + "']");
+                
+                dotnetObject.HelpText = GetNodeValue(Match, "summary") ?? string.Empty;
 
-                    dotnetObject.HelpText = GetNodeValue(Match, "summary") ?? string.Empty;
+                dotnetObject.Remarks = GetNodeValue(Match, "remarks");
+                dotnetObject.Example = GetExampleCode(Match);
 
-                    dotnetObject.Remarks = GetNodeValue(Match, "remarks");
-                    dotnetObject.Example = GetExampleCode(Match);
-
-                    var dotnetObjectRemarks = dotnetObject.Remarks.Trim();
-                    var dotnetObjectHelpText = dotnetObject.HelpText.Trim();
+                var dotnetObjectRemarks = dotnetObject.Remarks.Trim();
+                var dotnetObjectHelpText = dotnetObject.HelpText.Trim();
 
 
                 dotnetObjectHelpText = dotnetObjectHelpText.Replace("\r", "");
                 dotnetObjectHelpText = dotnetObjectHelpText.Replace("\n\n", "#$#$#$");
                 dotnetObjectHelpText = dotnetObjectHelpText.Replace("\n", " ");
-                dotnetObjectHelpText = dotnetObjectHelpText.Replace("#$#$#$","\r\n\r\n");
+                dotnetObjectHelpText = dotnetObjectHelpText.Replace("#$#$#$", "\r\n\r\n");
 
 
                 dotnetObject.SeeAlso = FixupSeeAlsoLinks(ref dotnetObjectHelpText) +
                                        FixupSeeAlsoLinks(ref dotnetObjectRemarks);
-                    dotnetObject.HelpText = dotnetObjectHelpText;
-                    dotnetObject.Remarks = dotnetObjectRemarks;
+                dotnetObject.HelpText = dotnetObjectHelpText;
+                dotnetObject.Remarks = dotnetObjectRemarks;
 
-                    dotnetObject.Contract = GetContracts(Match);
+                dotnetObject.Contract = GetContracts(Match);
+
+                Match = null;
+            }
+            catch (Exception ex)
+            {
+                string lcError = ex.Message;
+            }
+
+            // *** Loop through the methods
+            foreach (var method in dotnetObject.AllMethods)
+            {
+                if (method.Name == "FlattenTree")
+                {
+                    Debugger.Break();
+                }
+
+                // *** Strip off empty method parens
+                string methodSignature = method.Signature.Replace("()", "");
+
+                // *** Replace Reference of Reflection for the one use by XML docs
+                methodSignature = methodSignature.Replace("&", "@");
+
+                if (method.RawParameters == "")
+                    xPath = "/doc/members/member[@name='" +
+                        "M:" + methodSignature + "']";  // .cNamespace + "." + loObject.cName + "." + loMethod.cName + "']";
+                else
+                    xPath = "/doc/members/member[@name='" +
+                        "M:" + methodSignature + "']";
+
+                //							"M:" + loObject.cNamespace + "." + loObject.cName + "." + loMethod.cName +
+                //							"(" + loMethod.cRawParameters + ")']";
+
+
+                try
+                {
+                    // M:Westwind.Utilities.Encryption.EncryptBytes(System.Byte[],System.String)
+                    Match = oDom.SelectSingleNode(xPath);
+                    if (Match == null)
+                        continue;
+
+                    method.HelpText = GetNodeValue(Match, "summary");
+
+                   
+
+                    method.Remarks = GetNodeValue(Match, "remarks");
+                    method.Example = GetExampleCode(Match);
+                    method.Contract = GetContracts(Match);
+
+                    var methodHelpText = method.HelpText;
+                    var methodRemarks = method.Remarks;
+                    method.SeeAlso = FixupSeeAlsoLinks(ref methodHelpText) +
+                                     FixupSeeAlsoLinks(ref methodRemarks);
+
+                    method.HelpText = methodHelpText;
+                    method.Remarks = methodRemarks;
+                    //this.GetNodeValue(Match, "example");
+
+                    // *** Only update returns if the return comment is actually set
+                    // *** Otherwise leave the type intact
+                    method.ReturnDescription = GetNodeValue(Match, "returns");
+
+                    // *** Parse the parameters
+                    string parmDescriptions = "";
+                    foreach (var parm in method.ParameterList)
+                    {
+                        parmDescriptions = parmDescriptions +
+                            "**" + parm.Name + "**  \r\n";
+
+                        SubMatch = Match.SelectSingleNode("param[@name='" + parm.Name + "']");
+                        if (SubMatch != null)
+                        {
+                            string value = SubMatch.InnerText;
+                            if (value.Length > 0)
+                            {
+                                value = value.Trim(' ', '\t', '\r', '\n');
+                                parmDescriptions = parmDescriptions + value + "\r\n\r\n";
+                            }
+                            else
+                                // empty line
+                                parmDescriptions = parmDescriptions + "\r\n";
+                        }
+
+                    }
+                    method.DescriptiveParameters = parmDescriptions;
+
+                    string Exceptions = "";
+                    XmlNodeList ExceptionMatches = null;
+                    try
+                    {
+                        ExceptionMatches = Match.SelectNodes("exception");
+                    }
+                    catch { }
+
+                    if (ExceptionMatches != null)
+                    {
+                        foreach (XmlNode Node in ExceptionMatches)
+                        {
+                            XmlAttribute Ref = Node.Attributes["cref"];
+                            if (Ref != null)
+                                Exceptions += "**" + Ref.Value.Replace("T:", "").Replace("!:", "") + "**  \r\n";
+                            if (!string.IsNullOrEmpty(Node.InnerText))
+                                Exceptions += GetNodeValue(Node, "") + "\r\n";
+                            Exceptions += "\r\n";
+                        }
+                        method.Exceptions = Exceptions.TrimEnd('\r', '\n');
+                    }
 
                     Match = null;
                 }
@@ -83,169 +190,67 @@ namespace Westwind.TypeImporter
                 {
                     string lcError = ex.Message;
                 }
+            }  // for methods
 
-                // *** Loop through the methods
-                foreach(var method in dotnetObject.AllMethods)
-                {
-                    // *** Strip off empty method parens
-                    string MethodSignature = method.Signature.Replace("()", "");
+            // Combine properties and fields into a single list
+            var propAndFieldList = new List<ObjectProperty>();
+            propAndFieldList.AddRange(dotnetObject.Properties);
+            propAndFieldList.AddRange(dotnetObject.Fields);
 
-                    // *** Replace Reference of Reflection for the one use by XML docs
-                    MethodSignature = MethodSignature.Replace("&", "@");
+            // *** Loop through the properties and fields in one pass so we can use the same logic
+            foreach (var property in propAndFieldList)
+            {
+                string fieldPrefix = "P:";
+                if (property.PropertyMode == PropertyModes.Field)
+                    fieldPrefix = "F:";
 
-                    if (method.RawParameters == "")
-                        xPath = "/doc/members/member[@name='" +
-                            "M:" + MethodSignature + "']";  // .cNamespace + "." + loObject.cName + "." + loMethod.cName + "']";
-                    else
-                        xPath = "/doc/members/member[@name='" +
-                            "M:" + MethodSignature + "']";
+                xPath = "/doc/members/member[@name='" + fieldPrefix +
+                    property.Signature.Replace("()", "") + "']";
 
-                    //							"M:" + loObject.cNamespace + "." + loObject.cName + "." + loMethod.cName +
-                    //							"(" + loMethod.cRawParameters + ")']";
+                Match = oDom.SelectSingleNode(xPath);
 
+                property.HelpText = GetNodeValue(Match, "summary");
+                property.Remarks = GetNodeValue(Match, "remarks");
+                property.Example = GetExampleCode(Match);
+                property.Contract = GetContracts(Match);
 
-                    try
-                    {
-                        // M:Westwind.Utilities.Encryption.EncryptBytes(System.Byte[],System.String)
-                        Match = oDom.SelectSingleNode(xPath);
-                        if (Match == null)
-                            continue;
+                var propertyHelpText = property.HelpText;
+                var propertyRemarks = property.Remarks;
+                property.SeeAlso = FixupSeeAlsoLinks(ref propertyHelpText) +
+                                   FixupSeeAlsoLinks(ref propertyRemarks);
+                property.HelpText = propertyHelpText;
+                property.Remarks = propertyRemarks;
 
-                        method.HelpText = GetNodeValue(Match, "summary");
-                    
-                    if (method.HelpText.Contains("ValidationErrorCollection.AddFormat"))
-                        Debugger.Break();
+                string value = GetNodeValue(Match, "value");
+                if (!string.IsNullOrEmpty(value))
+                    property.DefaultValue = value;
 
-                        method.Remarks = GetNodeValue(Match, "remarks");
-                        method.Example = GetExampleCode(Match);
-                        method.Contract = GetContracts(Match);
+                Match = null;
 
-                        var methodHelpText = method.HelpText;
-                        var methodRemarks = method.Remarks;
-                        method.SeeAlso = FixupSeeAlsoLinks(ref methodHelpText) +
-                                          FixupSeeAlsoLinks(ref methodRemarks);
+            }  // for properties
 
-                        method.HelpText = methodHelpText;
-                        method.Remarks = methodRemarks;
-                        //this.GetNodeValue(Match, "example");
+            // *** Loop through the fields
+            foreach (var evt in dotnetObject.Events)
+            {
+                string lcFieldPrefix = "E:";
 
-                        // *** Only update returns if the return comment is actually set
-                        // *** Otherwise leave the type intact
-                        method.ReturnDescription = GetNodeValue(Match, "returns");
+                xPath = "/doc/members/member[@name='" + lcFieldPrefix +
+                    evt.Signature + "']";
 
-                        // *** Parse the parameters
-                        string parmDescriptions = "";
-                        foreach(var parm in method.ParameterList)
-                        {
-                            parmDescriptions = parmDescriptions +
-                                "**" + parm.Name + "**  \r\n";
+                Match = oDom.SelectSingleNode(xPath);
+                evt.HelpText = GetNodeValue(Match, "summary");
+                evt.Remarks = GetNodeValue(Match, "remarks");
+                evt.Example = GetExampleCode(Match);
 
-                            SubMatch = Match.SelectSingleNode("param[@name='" + parm.Name + "']");
-                            if (SubMatch != null)
-                            {
-                                string value = SubMatch.InnerText;
-                                if (value.Length > 0)
-                                {
-                                    value = value.Trim(' ', '\t', '\r', '\n');
-                                    parmDescriptions = parmDescriptions + value + "\r\n\r\n";
-                                }
-                                else
-                                    // empty line
-                                    parmDescriptions = parmDescriptions + "\r\n";
-                            }
+                var evtHelpText = evt.HelpText;
+                var evtRemarks = evt.Remarks;
+                evt.SeeAlso = this.FixupSeeAlsoLinks(ref evtHelpText) +
+                                   this.FixupSeeAlsoLinks(ref evtRemarks);
+                evt.HelpText = evtHelpText;
+                evt.Remarks = evtRemarks;
 
-                        }
-                        method.DescriptiveParameters = parmDescriptions;
-
-                        string Exceptions = "";
-                        XmlNodeList ExceptionMatches = null;
-                        try
-                        {
-                            ExceptionMatches = Match.SelectNodes("exception");
-                        }
-                        catch { }
-
-                        if (ExceptionMatches != null)
-                        {
-                            foreach (XmlNode Node in ExceptionMatches)
-                            {
-                                XmlAttribute Ref = Node.Attributes["cref"];
-                                if (Ref != null)
-                                    Exceptions += "**" + Ref.Value.Replace("T:", "").Replace("!:","") + "**  \r\n";
-                                if (!string.IsNullOrEmpty(Node.InnerText))
-                                    Exceptions += GetNodeValue(Node,"") + "\r\n";
-                                Exceptions += "\r\n";
-                            }
-                            method.Exceptions = Exceptions.TrimEnd('\r', '\n');
-                        }
-
-                        Match = null;
-                    }
-                    catch (Exception ex)
-                    {
-                        string lcError = ex.Message;
-                    }
-                }  // for methods
-
-                // Combine properties and fields into a single list
-                var propAndFieldList = new List<ObjectProperty>();
-                propAndFieldList.AddRange(dotnetObject.Properties);
-                propAndFieldList.AddRange(dotnetObject.Fields);
-
-                // *** Loop through the properties and fields in one pass so we can use the same logic
-                foreach(var property in propAndFieldList)
-                {
-                    string fieldPrefix = "P:";
-                    if (property.PropertyMode ==  PropertyModes.Field)
-                        fieldPrefix = "F:";
-
-                    xPath = "/doc/members/member[@name='" + fieldPrefix +
-                        property.Signature.Replace("()","") + "']";
-
-                    Match = oDom.SelectSingleNode(xPath);
-
-                    property.HelpText = GetNodeValue(Match, "summary");
-                    property.Remarks = GetNodeValue(Match, "remarks");
-                    property.Example = GetExampleCode(Match);
-                    property.Contract = GetContracts(Match);
-
-                    var propertyHelpText = property.HelpText;
-                    var propertyRemarks = property.Remarks;
-                    property.SeeAlso = FixupSeeAlsoLinks(ref propertyHelpText) +
-                                       FixupSeeAlsoLinks(ref propertyRemarks);
-                    property.HelpText = propertyHelpText;
-                    property.Remarks = propertyRemarks;
-
-                    string value = GetNodeValue(Match, "value");
-                    if (!string.IsNullOrEmpty(value))
-                        property.DefaultValue = value;
-
-                    Match = null;
-
-                }  // for properties
-
-                // *** Loop through the fields
-                foreach(var evt in dotnetObject.Events)
-                {
-                    string lcFieldPrefix = "E:";
-
-                    xPath = "/doc/members/member[@name='" + lcFieldPrefix +
-                        evt.Signature + "']";
-
-                    Match = oDom.SelectSingleNode(xPath);
-                    evt.HelpText = GetNodeValue(Match, "summary");
-                    evt.Remarks = GetNodeValue(Match, "remarks");
-                    evt.Example = GetExampleCode(Match);
-
-                    var evtHelpText = evt.HelpText;
-                    var evtRemarks = evt.Remarks;
-                    evt.SeeAlso = this.FixupSeeAlsoLinks(ref evtHelpText) +
-                                       this.FixupSeeAlsoLinks(ref evtRemarks);
-                    evt.HelpText = evtHelpText;
-                    evt.Remarks = evtRemarks;
-
-                    Match = null;
-                }  // for events
+                Match = null;
+            }  // for events
 
             return true;
         } // ParseXMLProperties (method)
@@ -287,12 +292,15 @@ namespace Westwind.TypeImporter
                 {
                     // *** Need to pull inner XML so we can get the sub XML strings ilke <seealso> etc.
                     var nodeContent = subMatch.InnerXml.Replace("\r\n", "\r");
+
+                    // expand <see> and <seealso> tags
+                    nodeContent = ParseSeeAndSeeAlso(nodeContent);
+
                     if (keyword == "example")
                         result = FixHelpString(nodeContent, false);
                     else
                         result = FixHelpString(nodeContent, wordWrap);
 
-                    result = ParseSeeAndSeeAlso(result);
 
                     //result = FixupCrefInlineCode(result);
                     //result = FixupSeeLinks(result);
@@ -348,7 +356,7 @@ namespace Westwind.TypeImporter
             result = result.Replace("&lt;", "<");
             result = result.Replace("&gt;", ">");
 
-            result = result.TrimEnd(new char[] { ' ','\t','\r','\n' });
+            result = result.TrimEnd([' ', '\t', '\r', '\n']);
 
             return result;
         }
@@ -430,7 +438,7 @@ namespace Westwind.TypeImporter
                         {
                             codeSb.AppendLine("```" + lang);
                         }
-                        string plainCode = FixHelpString(codeNode.InnerXml.Replace("\r\n","\r"), false);
+                        string plainCode = FixHelpString(codeNode.InnerXml.Replace("\r\n", "\r"), false);
                         //this.GetNodeValue(codeNode, "", false) ?? string.Empty;
 
                         codeSb.AppendLine(plainCode.TrimEnd());
@@ -472,17 +480,17 @@ namespace Westwind.TypeImporter
             // 0 - not a property, 1 get, 2 set
             int getSet;
 
-            var tokens = new string[] { "invariant","ensures","requires","getter/requires","setter/requires","getter/ensures","setter/ensures" };
-            foreach(string token in tokens)
+            var tokens = new string[] { "invariant", "ensures", "requires", "getter/requires", "setter/requires", "getter/ensures", "setter/ensures" };
+            foreach (string token in tokens)
             {
                 nodes = match.SelectNodes(token);
                 if (nodes == null || nodes.Count < 1)
                     continue;
 
                 if (token.StartsWith("getter"))
-                    getSet=1;
-                else if(token.StartsWith("setter"))
-                    getSet=2;
+                    getSet = 1;
+                else if (token.StartsWith("setter"))
+                    getSet = 2;
                 else
                     getSet = 0;
 
@@ -495,7 +503,7 @@ namespace Westwind.TypeImporter
                 if (getSet == 2)
                     sb.AppendLine("<div class=\"contractgetset\">Set</div>");
 
-                sb.AppendLine("<div class=\"contractitemheader\">" +  headerText + "</div>");
+                sb.AppendLine("<div class=\"contractitemheader\">" + headerText + "</div>");
                 foreach (XmlNode node in nodes)
                 {
                     string val = node.InnerText;
@@ -510,9 +518,9 @@ namespace Westwind.TypeImporter
                         exception = att.InnerText;
 
                     sb.AppendLine(val);
-                    if ( !string.IsNullOrEmpty(exception) )
+                    if (!string.IsNullOrEmpty(exception))
                         sb.AppendLine("*Exception: " + exception + "*");
-                    if ( !string.IsNullOrEmpty(desc) )
+                    if (!string.IsNullOrEmpty(desc))
                         sb.AppendLine("*Description: " + desc + "*");
 
                     sb.AppendLine();
@@ -662,8 +670,12 @@ namespace Westwind.TypeImporter
                 extract = body.ExtractString("<seealso>", "</seealso>");
                 if (extract != "")
                 {
-                    result += extract + "\r\n";
-                    body = body.Replace("<seealso>" + extract + "</seealso>", "");
+                    var insert = extract;
+                    if (insert is not null && insert.Length > 2 && insert[1] == ':')
+                        insert = insert.Substring(2);
+
+                    result += insert + "\r\n";
+                    body = body.Replace("<seealso>" + extract + "</seealso>", "").Trim();
                 }
                 else
                 {
@@ -678,28 +690,13 @@ namespace Westwind.TypeImporter
                         // strip out type prefix (T:System.String)
                         string insertText = cref.ExtractString(":", "xx", false, true);
 
-                        body = body.Replace(extract, "<%= TopicLink(\"" + insertText + "\",\"" + cref + "\") %>");
+                        body = body.Replace(extract, "").Trim();
                         result += cref + "\r\n";
                     }
                 }
             }
 
             return result;
-        }
-
-        static string UrlEncodeSimple(string url, bool encodeSlashes = false)
-        {
-            if (encodeSlashes)
-                return System.Net.WebUtility.UrlEncode(url);
-
-            return url
-                .Replace("%", "%25")
-                .Replace(" ", "%20")
-                .Replace("&", "%26")
-                .Replace("?", "%3F")
-                .Replace("#", "%23")
-                .Replace("\n", "%0A")
-                .Replace("\r", "%0D");
         }
 
         /// <summary>
@@ -724,13 +721,25 @@ namespace Westwind.TypeImporter
                     if (cref.StartsWith("M:") && cref.IndexOf("(") == -1)
                         cref += "()";
 
-                    // *** Mark as a Signature link skipping over prefix
-                    cref = "sig:" + cref.Substring(2);
+                    cref= cref.Substring(2);                    
                 }
-                else
-                    cref = "sig:" + cref;
             }
             return cref;
+        }
+
+        static string UrlEncodeSimple(string url, bool encodeSlashes = false)
+        {
+            if (encodeSlashes)
+                return System.Net.WebUtility.UrlEncode(url);
+
+            return url
+                .Replace("%", "%25")
+                .Replace(" ", "%20")
+                .Replace("&", "%26")
+                .Replace("?", "%3F")
+                .Replace("#", "%23")
+                .Replace("\n", "%0A")
+                .Replace("\r", "%0D");
         }
 
         protected string GetAttributeValue(XmlNode Node, string Keyword, string Attribute)
@@ -761,9 +770,9 @@ namespace Westwind.TypeImporter
         /// </summary>
         /// <param name="inputString"></param>
         /// <returns></returns>
-        protected string FixHelpString(string inputString,bool wordWrap)
+        protected string FixHelpString(string inputString, bool wordWrap)
         {
-            string[] strings = inputString.Split(new char[2] {'\r','\n'});
+            string[] strings = inputString.Split(new char[2] { '\r', '\n' });
             string output = "";
 
             //*** We need to strip padding that XML Help topics add
@@ -775,7 +784,7 @@ namespace Westwind.TypeImporter
             for (int x = 0; x < strings.Length; x++)
             {
                 // *** Strip off leading spaces and the \n
-                string currentString = strings[x].TrimStart(new char[2] { '\r','\n' }).TrimEnd();
+                string currentString = strings[x].TrimStart(new char[2] { '\r', '\n' }).TrimEnd();
 
                 // *** Padding is unset until we hit the first line
                 if (padding == -1)
@@ -896,6 +905,8 @@ namespace Westwind.TypeImporter
             }
         }
 
+
+
         private static string ProcessNode(XNode node)
         {
             if (node is XText text)
@@ -905,9 +916,9 @@ namespace Westwind.TypeImporter
 
             if (node is XElement element)
             {
-                string name = element.Name.LocalName;
-                if (name == "see" || name == "seealso")
+                if(element.Name.LocalName == "see")
                 {
+                    string name = element.Name.LocalName;
                     string cref = element.Attribute("cref")?.Value;
                     string href = element.Attribute("href")?.Value;
                     string attrib = cref ?? href ?? string.Empty;
@@ -919,25 +930,23 @@ namespace Westwind.TypeImporter
                     string linkText = string.IsNullOrEmpty(inner) ? GetFriendlyName(attrib) : inner;
 
                     if (string.IsNullOrEmpty(attrib))
-                    {
-                        return linkText; // No link, just text
-                    }
+                        attrib = linkText;
+
+                    if (!string.IsNullOrEmpty(linkText) && linkText.StartsWithAny("M:", "T:", "P:", "E:", "N:"))
+                        linkText = linkText.Substring(2);
 
                     // Determine link scheme
-                    string link = attrib.StartsWith("http", StringComparison.OrdinalIgnoreCase)
+                    string link = attrib.StartsWith("http")
                         ? attrib
-                        : "dm-title://" + attrib;
+                        : $"dm-title://{UrlEncodeSimple(attrib)}";
 
                     return $"[{linkText}]({link})";
-                }
-                else
-                {
-                    // For other elements, strip the tag and process children (e.g., <para> becomes just its text)
-                    return string.Concat(element.Nodes().Select(ProcessNode));
-                }
+                }                
             }
 
-            return string.Empty;
+            // unknown element            
+            var res  = node.ToString();
+            return res;
         }
 
         private static string GetFriendlyName(string cref)
@@ -957,6 +966,7 @@ namespace Westwind.TypeImporter
 
             return cref;
         }
+
         #endregion
 
     }

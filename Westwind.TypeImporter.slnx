@@ -1,0 +1,4 @@
+<Solution>
+  <Project Path="Westwind.TypeImporter.Test/Westwind.TypeImporter.Test.csproj" />
+  <Project Path="Westwind.TypeImporter/Westwind.TypeImporter.csproj" />
+</Solution>
