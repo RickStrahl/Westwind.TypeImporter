@@ -291,7 +291,7 @@ namespace Westwind.TypeImporter
                 if (subMatch != null)
                 {
                     // *** Need to pull inner XML so we can get the sub XML strings ilke <seealso> etc.
-                    var nodeContent = subMatch.InnerXml.Replace("\r\n", "\r");
+                    var nodeContent = subMatch.InnerXml.Replace("\r\n", "\n");
 
                     // expand <see> and <seealso> tags
                     nodeContent = ParseSeeAndSeeAlso(nodeContent);
@@ -299,8 +299,7 @@ namespace Westwind.TypeImporter
                     if (keyword == "example")
                         result = FixHelpString(nodeContent, false);
                     else
-                        result = FixHelpString(nodeContent, wordWrap);
-
+                        result = FixHelpString(nodeContent, wordWrap);                                       
 
                     //result = FixupCrefInlineCode(result);
                     //result = FixupSeeLinks(result);
@@ -781,8 +780,10 @@ namespace Westwind.TypeImporter
             //*** for every line.
             int padding = -1;
 
+         
+
             for (int x = 0; x < strings.Length; x++)
-            {
+             {
                 // *** Strip off leading spaces and the \n
                 string currentString = strings[x].TrimStart(new char[2] { '\r', '\n' }).TrimEnd();
 
@@ -896,7 +897,7 @@ namespace Westwind.TypeImporter
             {
                 // Wrap in a dummy element to parse as XML fragment
                 var dummy = XElement.Parse("<dummy>" + input + "</dummy>");
-                return string.Concat(dummy.Nodes().Select(ProcessNode)).Trim();
+                return string.Concat(dummy.Nodes().Select(ProcessNode)).TrimEnd();
             }
             catch (Exception)
             {
